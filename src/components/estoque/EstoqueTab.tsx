@@ -20,6 +20,8 @@ import { BPM_PROJETO_ID } from '@/lib/projeto';
 import { firstLastName } from '@/lib/utils';
 import StatusChangeDialog from '@/components/estoque/StatusChangeDialog';
 import RetiradaDialog from '@/components/estoque/RetiradaDialog';
+import DadosFiscaisNovaDialog from '@/components/estoque/DadosFiscaisNovaDialog';
+import { pendenciasVeicProd } from '@/lib/veicProd';
 import StatusTimeline from '@/components/shared/StatusTimeline';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -91,6 +93,14 @@ interface EstoqueItem {
   tipo_aquisicao?: string | null;
   pos_compra_status?: string | null;
   displayTipo?: string | null;
+  // estoque_motos_novas — specs do grupo veicProd da NF-e (só 0km)
+  potencia_motor?: string | number | null;
+  peso_liquido?: string | number | null;
+  peso_bruto?: string | number | null;
+  numero_motor?: string | null;
+  codigo_cor_fabricante?: string | null;
+  codigo_cor_denatran?: string | null;
+  codigo_marca_modelo_denatran?: string | null;
 }
 
 // Navigation target type removed - using EstoqueNavTarget from props
@@ -135,6 +145,7 @@ const EstoqueTab = ({ onNavigateToTab }: EstoqueTabProps = {}) => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [retiradaItem, setRetiradaItem] = useState<EstoqueItem | null>(null);
   const [consultaItem, setConsultaItem] = useState<EstoqueItem | null>(null);
+  const [dadosFiscaisItem, setDadosFiscaisItem] = useState<EstoqueItem | null>(null);
 
   const handleOpenHistory = async (item: EstoqueItem) => {
     setHistoryItem(item);
@@ -393,6 +404,16 @@ const EstoqueTab = ({ onNavigateToTab }: EstoqueTabProps = {}) => {
         label: 'Histórico',
         icon: <History className="h-4 w-4" />,
         action: () => handleOpenHistory(item),
+      });
+    }
+
+    // Specs fiscais do veículo (grupo veicProd da NF-e) — só moto 0km.
+    if (item.tipo === '0km') {
+      const faltaVeic = pendenciasVeicProd(item).length;
+      options.push({
+        label: faltaVeic > 0 ? `Dados fiscais (NF-e) · ${faltaVeic} pend.` : 'Dados fiscais (NF-e)',
+        icon: <FileText className="h-4 w-4" />,
+        action: () => setDadosFiscaisItem(item),
       });
     }
 
@@ -744,6 +765,16 @@ const EstoqueTab = ({ onNavigateToTab }: EstoqueTabProps = {}) => {
         estoqueItem={retiradaItem}
         onSuccess={() => {
           setRetiradaItem(null);
+          fetchEstoque();
+        }}
+      />
+
+      <DadosFiscaisNovaDialog
+        open={!!dadosFiscaisItem}
+        onOpenChange={(open) => { if (!open) setDadosFiscaisItem(null); }}
+        item={dadosFiscaisItem}
+        onSuccess={() => {
+          setDadosFiscaisItem(null);
           fetchEstoque();
         }}
       />

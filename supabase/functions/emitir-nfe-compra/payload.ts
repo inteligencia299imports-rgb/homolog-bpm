@@ -187,13 +187,13 @@ export function informacoesAdicionaisItemMoto(m: DadosMoto): string {
  * combustível gasolina, condição "acabado", espécie/tipo/lotação de moto, chassi
  * não remarcado, sem restrição.
  *
- * O XSD da SEFAZ (TVeicProd) exige TAMBÉM potência, peso líquido/bruto e nº do
- * motor quando o grupo é enviado — e hoje não há onde cadastrar isso (nem no
- * estoque 0km nem no catálogo de modelos — ver docs-fiscal-299/pendencias.md
- * §2.8). Sem esses campos o grupo sai incompleto e a SEFAZ REJEITA; por isso,
- * enquanto faltarem, esta função devolve `null` e a NF é emitida sem `veicProd`
- * (comportamento atual). Assim que forem capturados e chegarem em `DadosMoto`,
- * o grupo passa a ser enviado automaticamente.
+ * O XSD da SEFAZ (TVeicProd) exige TAMBÉM potência, peso líquido/bruto, nº do
+ * motor, código de cor do fabricante, código de cor DENATRAN e código Marca/
+ * Modelo DENATRAN quando o grupo é enviado — capturados por unidade no
+ * `estoque_motos_novas` (dialog "Dados fiscais (NF-e)" do estoque 0km — ver
+ * docs-fiscal-299/pendencias.md §2.8). Enquanto qualquer um faltar, esta função
+ * devolve `null` e a NF sai sem `veicProd` (comportamento atual), pra não mandar
+ * grupo incompleto e ser rejeitada. Preenchido tudo → o grupo passa a ir.
  */
 export function veiculoProdMoto(m: DadosMoto): Record<string, unknown> | null {
   if (!m.zero_km) return null;
@@ -202,9 +202,12 @@ export function veiculoProdMoto(m: DadosMoto): Record<string, unknown> | null {
   const pesoL = String(m.peso_liquido ?? '').trim();
   const pesoB = String(m.peso_bruto ?? '').trim();
   const nMotor = String(m.numero_motor ?? '').trim();
-  // Campos obrigatórios pelo XSD que ainda não temos de onde tirar — sem eles o
-  // grupo seria rejeitado, então não envia nenhum (mantém o texto livre atual).
-  if (!potencia || !pesoL || !pesoB || !nMotor) return null;
+  const cCor = String(m.codigo_cor_fabricante ?? '').trim();
+  const cCorDenatran = String(m.codigo_cor_denatran ?? '').trim();
+  const cMod = String(m.codigo_marca_modelo_denatran ?? '').trim();
+  // Todos obrigatórios pelo XSD quando o grupo é enviado — sem qualquer um, não
+  // manda o grupo (mantém o texto livre atual e evita rejeição por incompleto).
+  if (!potencia || !pesoL || !pesoB || !nMotor || !cCor || !cCorDenatran || !cMod) return null;
 
   const cc = onlyDigits(String(m.cilindrada ?? ""));
   const anoFab = m.ano_fabricacao ?? m.ano_modelo ?? null;
@@ -220,20 +223,22 @@ export function veiculoProdMoto(m: DadosMoto): Record<string, unknown> | null {
     veiculo_codigo_vin: 'N',                // VIN — chassi não remarcado
     veiculo_restricao: 0,                   // tpRest — sem restrição
     veiculo_tipo_pintura: 'A',
-    veiculo_distancia_eixos: '0',
+    veiculo_distancia_eixos: '0',           // dist — moto (eixo único)
+    veiculo_cmt: '0',                       // CMT — não se aplica a moto
+    veiculo_serie: '1',                     // nSerie — não controlado; issuers usam "1"
     veiculo_potencia_motor: potencia,
     veiculo_peso_liquido: pesoL,
     veiculo_peso_bruto: pesoB,
     veiculo_numero_motor: nMotor,
+    veiculo_codigo_cor: cCor,
+    veiculo_codigo_cor_denatran: cCorDenatran,
+    veiculo_codigo_marca_modelo: cMod,
   };
   if (m.chassi) v.veiculo_chassi = m.chassi.toUpperCase();
   if (m.cor) v.veiculo_descricao_cor = m.cor.toUpperCase();
   if (cc) v.veiculo_cm3 = cc;
   if (anoFab) v.veiculo_ano_fabricacao = Number(anoFab) || anoFab;
   if (anoMod) v.veiculo_ano_modelo = Number(anoMod) || anoMod;
-  if (m.codigo_cor_fabricante) v.veiculo_codigo_cor = m.codigo_cor_fabricante;
-  if (m.codigo_cor_denatran) v.veiculo_codigo_cor_denatran = m.codigo_cor_denatran;
-  if (m.codigo_marca_modelo_denatran) v.veiculo_codigo_marca_modelo = m.codigo_marca_modelo_denatran;
   return v;
 }
 
