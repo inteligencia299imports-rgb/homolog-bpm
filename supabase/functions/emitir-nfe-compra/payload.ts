@@ -38,6 +38,22 @@ export interface DadosMoto {
   ncm?: string | null;
   /** Nº da NF de entrada (fornecedor/fábrica) — só moto 0km, cadastrado no estoque. */
   numero_nf_entrada?: string | null;
+  /** É moto 0km (veículo novo)? Só nesse caso vai o grupo estruturado veicProd. */
+  zero_km?: boolean;
+  // --- Specs do grupo veicProd (veículo novo) — obrigatórias pelo XSD da SEFAZ
+  // quando o grupo é enviado. Hoje não há onde cadastrar potência/peso/nº do
+  // motor/códigos DENATRAN (ver docs-fiscal-299/pendencias.md §2.8); enquanto
+  // faltarem, veiculoProdMoto() devolve null e a NF sai sem o grupo. ---
+  potencia_motor?: string | number | null;
+  peso_liquido?: string | number | null;
+  peso_bruto?: string | number | null;
+  numero_motor?: string | null;
+  /** cCor — código de cor do fabricante (texto livre). */
+  codigo_cor_fabricante?: string | null;
+  /** cCorDENATRAN — código de cor da tabela DENATRAN. */
+  codigo_cor_denatran?: string | null;
+  /** cMod — código Marca/Modelo da tabela DENATRAN. */
+  codigo_marca_modelo_denatran?: string | null;
 }
 
 /** Espelha naturezas_operacao. */
@@ -74,6 +90,9 @@ export interface RegraFiscal {
   // só na regra de ICMS quando aplicável.
   aliquota_icms_efetiva?: number | null;
   reducao_base_calculo_efetiva?: number | null;
+  /** pST — alíquota do ICMS-ST suportada pelo consumidor final (grupo "ICMS-ST
+   * retido anteriormente", CST 60). Só na regra de ICMS. Ex.: 12 (SC). */
+  aliquota_suportada_consumidor_final?: number | null;
   // Reforma Tributária — preenchidos apenas na linha imposto === 'ibscbs'.
   classificacao_tributaria?: string | null; // cClassTrib
   cbs_aliquota?: number | null;
@@ -159,6 +178,70 @@ export function informacoesAdicionaisItemMoto(m: DadosMoto): string {
   return linhas.filter(Boolean).join(' ');
 }
 
+/**
+ * Grupo estruturado `veicProd` (veículo novo) do item — só para moto 0km.
+ *
+ * Preenche tudo que dá pra derivar do estoque/avaliação (chassi, cor, cilindrada,
+ * ano fab./mod.) + os valores que são fixos/óbvios para motocicleta, espelhados de
+ * uma NF-e de venda de 0km AUTORIZADA em produção (Ducati SC, NCM 8711, tpOp=1):
+ * combustível gasolina, condição "acabado", espécie/tipo/lotação de moto, chassi
+ * não remarcado, sem restrição.
+ *
+ * O XSD da SEFAZ (TVeicProd) exige TAMBÉM potência, peso líquido/bruto, nº do
+ * motor, código de cor do fabricante, código de cor DENATRAN e código Marca/
+ * Modelo DENATRAN quando o grupo é enviado — capturados por unidade no
+ * `estoque_motos_novas` (dialog "Dados fiscais (NF-e)" do estoque 0km — ver
+ * docs-fiscal-299/pendencias.md §2.8). Enquanto qualquer um faltar, esta função
+ * devolve `null` e a NF sai sem `veicProd` (comportamento atual), pra não mandar
+ * grupo incompleto e ser rejeitada. Preenchido tudo → o grupo passa a ir.
+ */
+export function veiculoProdMoto(m: DadosMoto): Record<string, unknown> | null {
+  if (!m.zero_km) return null;
+
+  const potencia = onlyDigits(String(m.potencia_motor ?? ""));
+  const pesoL = String(m.peso_liquido ?? '').trim();
+  const pesoB = String(m.peso_bruto ?? '').trim();
+  const nMotor = String(m.numero_motor ?? '').trim();
+  const cCor = String(m.codigo_cor_fabricante ?? '').trim();
+  const cCorDenatran = String(m.codigo_cor_denatran ?? '').trim();
+  const cMod = String(m.codigo_marca_modelo_denatran ?? '').trim();
+  // Todos obrigatórios pelo XSD quando o grupo é enviado — sem qualquer um, não
+  // manda o grupo (mantém o texto livre atual e evita rejeição por incompleto).
+  if (!potencia || !pesoL || !pesoB || !nMotor || !cCor || !cCorDenatran || !cMod) return null;
+
+  const cc = onlyDigits(String(m.cilindrada ?? ""));
+  const anoFab = m.ano_fabricacao ?? m.ano_modelo ?? null;
+  const anoMod = m.ano_modelo ?? m.ano_fabricacao ?? null;
+
+  const v: Record<string, unknown> = {
+    veiculo_tipo_operacao: 1,               // tpOp — venda de 0km por concessionária
+    veiculo_condicao: 1,                    // condVeic — acabado
+    veiculo_tipo_combustivel: '02',         // tpComb — gasolina (catálogo só tem moto a combustão)
+    veiculo_especie: 1,                     // espVeic — passageiro
+    veiculo_tipo: '04',                     // tpVeic — motocicleta (tabela RENAVAM)
+    veiculo_lotacao: 2,                     // lota — condutor + 1
+    veiculo_codigo_vin: 'N',                // VIN — chassi não remarcado
+    veiculo_restricao: 0,                   // tpRest — sem restrição
+    veiculo_tipo_pintura: 'A',
+    veiculo_distancia_eixos: '0',           // dist — moto (eixo único)
+    veiculo_cmt: '0',                       // CMT — não se aplica a moto
+    veiculo_serie: '1',                     // nSerie — não controlado; issuers usam "1"
+    veiculo_potencia_motor: potencia,
+    veiculo_peso_liquido: pesoL,
+    veiculo_peso_bruto: pesoB,
+    veiculo_numero_motor: nMotor,
+    veiculo_codigo_cor: cCor,
+    veiculo_codigo_cor_denatran: cCorDenatran,
+    veiculo_codigo_marca_modelo: cMod,
+  };
+  if (m.chassi) v.veiculo_chassi = m.chassi.toUpperCase();
+  if (m.cor) v.veiculo_descricao_cor = m.cor.toUpperCase();
+  if (cc) v.veiculo_cm3 = cc;
+  if (anoFab) v.veiculo_ano_fabricacao = Number(anoFab) || anoFab;
+  if (anoMod) v.veiculo_ano_modelo = Number(anoMod) || anoMod;
+  return v;
+}
+
 export function montarPayloadNfeCompra(args: MontarPayloadArgs): Record<string, unknown> {
   const { natureza, empresa, fornecedor, moto, valor, regraIcms, regraPis, regraCofins, regraIpi, regraIbsCbs, observacoes, vendedorNome, formasPagamentoTexto } = args;
 
@@ -191,6 +274,11 @@ export function montarPayloadNfeCompra(args: MontarPayloadArgs): Record<string, 
     pis_situacao_tributaria: regraPis.situacao_tributaria,
     cofins_situacao_tributaria: regraCofins.situacao_tributaria,
   };
+  // Grupo estruturado do veículo novo (só 0km, e só quando temos todas as specs
+  // que o XSD exige — ver veiculoProdMoto). Fica junto do item.
+  const veic = veiculoProdMoto(moto);
+  if (veic) Object.assign(item, veic);
+
   if (regraPis.aliquota != null) { item.pis_aliquota_porcentual = Number(regraPis.aliquota); item.pis_base_calculo = 0; item.pis_valor = 0; }
   if (regraCofins.aliquota != null) { item.cofins_aliquota_porcentual = Number(regraCofins.aliquota); item.cofins_base_calculo = 0; item.cofins_valor = 0; }
   if (regraIpi) {
@@ -214,6 +302,24 @@ export function montarPayloadNfeCompra(args: MontarPayloadArgs): Record<string, 
     if (regraIcms.aliquota_fcp != null) item.fcp_aliquota = Number(regraIcms.aliquota_fcp);
     item.icms_base_calculo = 0;
     item.icms_valor = 0;
+  }
+
+  // --- Grupo "ICMS-ST retido anteriormente" (CST 60) ---------------------
+  // No XSD (TICMS60) vem ANTES do grupo "ICMS Efetivo". A NF-e de referência
+  // (Ducati SC autorizada) traz vBCSTRet/pST/vICMSSubstituto/vICMSSTRet com os
+  // valores reais da retenção lá na NOTA DE ENTRADA da fábrica — dados que hoje
+  // não capturamos (só o nº da NF de entrada). Enviamos o grupo com a alíquota
+  // suportada pelo consumidor final (pST, da regra de ICMS) e a ST calculada
+  // sobre o valor da venda; vICMSSubstituto (ICMS próprio do substituto na
+  // origem) fica 0 por não termos a origem. Sem pST cadastrado, não envia o
+  // grupo (a nota de referência da FAG foi autorizada sem ele). Ver
+  // docs-fiscal-299/pendencias.md §2.8.
+  if (cstIcms === '60' && regraIcms.aliquota_suportada_consumidor_final != null) {
+    const pST = Number(regraIcms.aliquota_suportada_consumidor_final);
+    item.icms_base_calculo_st_retido = valorFmt;
+    item.icms_aliquota_suportada_consumidor_final = pST;
+    item.icms_valor_substituto = 0;
+    item.icms_valor_st_retido = r2(valorFmt * (pST / 100));
   }
 
   // --- Grupo "ICMS Efetivo" (CST 60 / CSOSN 500) --------------------------

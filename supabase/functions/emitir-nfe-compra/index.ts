@@ -805,7 +805,7 @@ Deno.serve(async (req) => {
         'aliquota_fcp, tipo_tributacao, informacoes_complementares, informacoes_adicionais_fisco, destino_ufs, ordem, ' +
         'natureza_operacao_descricao, indicador_presenca, tipo_atendimento, ' +
         'classificacao_tributaria, cbs_aliquota, ibs_uf_aliquota, ibs_mun_aliquota, percentual_reducao, ' +
-        'aliquota_icms_efetiva, reducao_base_calculo_efetiva)',
+        'aliquota_icms_efetiva, reducao_base_calculo_efetiva, aliquota_suportada_consumidor_final)',
     )
     .eq('empresa_id', empresaId)
     .eq('descricao', cfg.naturezaDescricao)
@@ -879,6 +879,17 @@ Deno.serve(async (req) => {
       // Nº da NF de entrada (fornecedor/fábrica) — só existe pra moto 0km,
       // cadastrado direto no estoque_motos_novas (numero_nf_entrada).
       numero_nf_entrada: eh0km ? (mn.numero_nf_entrada ?? null) : null,
+      // Grupo estruturado veicProd (veículo novo) — só 0km. Specs de potência/
+      // peso/nº do motor/códigos DENATRAN ainda não têm cadastro (pendencias
+      // §2.8); mapeadas aqui já para ativar sozinho quando existirem.
+      zero_km: eh0km,
+      potencia_motor: eh0km ? ((mn as any).potencia_motor ?? null) : null,
+      peso_liquido: eh0km ? ((mn as any).peso_liquido ?? null) : null,
+      peso_bruto: eh0km ? ((mn as any).peso_bruto ?? null) : null,
+      numero_motor: eh0km ? ((mn as any).numero_motor ?? null) : null,
+      codigo_cor_fabricante: eh0km ? ((mn as any).codigo_cor_fabricante ?? null) : null,
+      codigo_cor_denatran: eh0km ? ((mn as any).codigo_cor_denatran ?? null) : null,
+      codigo_marca_modelo_denatran: eh0km ? ((mn as any).codigo_marca_modelo_denatran ?? null) : null,
     };
   } else {
     motoData = {

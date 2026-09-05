@@ -1002,6 +1002,9 @@ export type Database = {
           chassi: string | null
           chave_nfe_origem: string | null
           cilindrada: string | null
+          codigo_cor_denatran: string | null
+          codigo_cor_fabricante: string | null
+          codigo_marca_modelo_denatran: string | null
           cor: string | null
           created_at: string
           empresa_id: string | null
@@ -1010,9 +1013,13 @@ export type Database = {
           marca_id: string
           modelo_id: string
           ncm: string | null
+          numero_motor: string | null
           observacoes: string | null
           origem_externa_id: string | null
+          peso_bruto: number | null
+          peso_liquido: number | null
           placa: string | null
+          potencia_motor: string | null
           renavam: string | null
           status: string
           updated_at: string
@@ -1026,6 +1033,9 @@ export type Database = {
           chassi?: string | null
           chave_nfe_origem?: string | null
           cilindrada?: string | null
+          codigo_cor_denatran?: string | null
+          codigo_cor_fabricante?: string | null
+          codigo_marca_modelo_denatran?: string | null
           cor?: string | null
           created_at?: string
           empresa_id?: string | null
@@ -1034,9 +1044,13 @@ export type Database = {
           marca_id: string
           modelo_id: string
           ncm?: string | null
+          numero_motor?: string | null
           observacoes?: string | null
           origem_externa_id?: string | null
+          peso_bruto?: number | null
+          peso_liquido?: number | null
           placa?: string | null
+          potencia_motor?: string | null
           renavam?: string | null
           status?: string
           updated_at?: string
@@ -1050,6 +1064,9 @@ export type Database = {
           chassi?: string | null
           chave_nfe_origem?: string | null
           cilindrada?: string | null
+          codigo_cor_denatran?: string | null
+          codigo_cor_fabricante?: string | null
+          codigo_marca_modelo_denatran?: string | null
           cor?: string | null
           created_at?: string
           empresa_id?: string | null
@@ -1058,9 +1075,13 @@ export type Database = {
           marca_id?: string
           modelo_id?: string
           ncm?: string | null
+          numero_motor?: string | null
           observacoes?: string | null
           origem_externa_id?: string | null
+          peso_bruto?: number | null
+          peso_liquido?: number | null
           placa?: string | null
+          potencia_motor?: string | null
           renavam?: string | null
           status?: string
           updated_at?: string
